@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Submit Complaint | Fraudulent Complaint Detection{% endblock %}
+{% block submit_nav_class %}active{% endblock %}
+
+{% block content %}
+<section class="submission-grid">
+    <article class="panel-card">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Input Form</p>
+                <h2>Submit Complaint Text</h2>
+            </div>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data" class="complaint-form">
+            <label for="complaint">Complaint Description</label>
+            <textarea
+                id="complaint"
+                name="complaint"
+                rows="10"
+                placeholder="Describe the complaint clearly so the model can evaluate the language pattern."
+                required
+            >{{ prediction.complaint if prediction else '' }}</textarea>
+
+            <label for="image">Upload Image (Optional)</label>
+            <input
+                id="image"
+                type="file"
+                name="image"
+                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+            >
+            <p class="field-help">Accepted formats: JPG, JPEG, PNG. Maximum file size: 2MB.</p>
+
+            <button type="submit" class="primary-btn">Analyze Complaint</button>
+        </form>
+    </article>
+
+    <article class="panel-card result-card">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Prediction Result</p>
+                <h2>Model Output</h2>
+            </div>
+        </div>
+
+        {% if prediction %}
+        <div class="result-pill {{ 'result-fraud' if prediction.result == 'Fraudulent' else 'result-genuine' }}">
+            {{ prediction.result }}
+        </div>
+        <p class="result-copy">
+            The complaint has been classified as <strong>{{ prediction.result }}</strong> with a confidence score of <strong>{{ prediction.confidence }}%</strong>.
+        </p>
+        <div class="confidence-meter">
+            <span style="width: {{ prediction.confidence }}%;"></span>
+        </div>
+        <div class="result-reference">
+            <span>Uploaded Image</span>
+            {% if prediction.image_path %}
+            <img
+                src="{{ url_for('static', filename=prediction.image_path) }}"
+                alt="Uploaded complaint reference image"
+                class="complaint-thumbnail large"
+            >
+            {% else %}
+            <p class="no-image">No Image</p>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="empty-state aligned-left">
+            <h3>Awaiting submission</h3>
+            <p>Once you submit a complaint, the prediction result and confidence score will appear here.</p>
+        </div>
+        {% endif %}
+    </article>
+</section>
+{% endblock %}

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Fraudulent Complaint Detection{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="page-shell">
+        {% if session.get("user") %}
+        <header class="topbar">
+            <a href="{{ url_for('dashboard') if session.get('role') != 'admin' else url_for('admin') }}" class="brand">
+                <span class="brand-mark">FD</span>
+                <span>
+                    <strong>Fraudulent Complaint Detection</strong>
+                    <small>Secure complaint intelligence</small>
+                </span>
+            </a>
+
+            <div class="topbar-actions">
+                {% if session.get("role") == "admin" %}
+                <div class="notification-wrapper" id="notificationWrapper">
+                    <button
+                        type="button"
+                        class="notification-button"
+                        id="notificationButton"
+                        aria-label="Admin notifications"
+                        aria-expanded="false"
+                    >
+                        <span class="notification-bell">&#128276;</span>
+                        {% if unread_notifications %}
+                        <span class="notification-count" id="notificationCount">{{ unread_notifications }}</span>
+                        {% else %}
+                        <span class="notification-count hidden" id="notificationCount">0</span>
+                        {% endif %}
+                    </button>
+                </div>
+                {% endif %}
+
+                <nav class="nav-menu">
+                {% if session.get("role") != "admin" %}
+                <a href="{{ url_for('dashboard') }}" class="{% block dashboard_nav_class %}{% endblock %}">Dashboard</a>
+                <a href="{{ url_for('submit_complaint') }}" class="{% block submit_nav_class %}{% endblock %}">Submit Complaint</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}">Logout</a>
+                </nav>
+            </div>
+        </header>
+        {% endif %}
+
+        <main class="page-content {% block page_class %}{% endblock %}">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <section class="flash-stack">
+                        {% for category, message in messages %}
+                        <div class="flash flash-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </section>
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% if session.get("role") == "admin" %}
+    <div class="notification-dropdown hidden" id="notificationDropdown">
+        <div class="notification-header">
+            <div>
+                <strong>Notifications</strong>
+                <small>Recent admin alerts</small>
+            </div>
+        </div>
+        <div class="notification-list" id="notificationList">
+            {% if admin_notifications %}
+                {% for notification in admin_notifications %}
+                <article class="notification-item {{ 'is-unread' if notification.status == 'unread' else '' }}" data-notification-id="{{ notification.id }}">
+                    <div class="notification-copy">
+                        <p>{{ notification.message }}</p>
+                        <small>{{ notification.created_at }}</small>
+                    </div>
+                    {% if notification.status == 'unread' %}
+                    <button type="button" class="notification-read-btn" data-notification-id="{{ notification.id }}">Mark as read</button>
+                    {% else %}
+                    <span class="notification-read-label">Read</span>
+                    {% endif %}
+                </article>
+                {% endfor %}
+            {% else %}
+            <div class="notification-empty" id="notificationEmpty">No notifications yet.</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% block scripts %}{% endblock %}
+    {% if session.get("role") == "admin" %}
+    <script>
+    (() => {
+        const wrapper = document.getElementById("notificationWrapper");
+        const button = document.getElementById("notificationButton");
+        const dropdown = document.getElementById("notificationDropdown");
+        const list = document.getElementById("notificationList");
+        const count = document.getElementById("notificationCount");
+
+        if (!wrapper || !button || !count) {
+            return;
+        }
+
+        if (!dropdown || !list) {
+            return;
+        }
+
+        const escapeHtml = (value) => String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+
+        const renderNotifications = (notifications, unreadCount) => {
+            count.textContent = unreadCount;
+            count.classList.toggle("hidden", unreadCount === 0);
+
+            if (!notifications.length) {
+                list.innerHTML = '<div class="notification-empty" id="notificationEmpty">No notifications yet.</div>';
+                return;
+            }
+
+            list.innerHTML = notifications.map((notification) => `
+                <article class="notification-item ${notification.status === "unread" ? "is-unread" : ""}" data-notification-id="${notification.id}">
+                    <div class="notification-copy">
+                        <p>${escapeHtml(notification.message)}</p>
+                        <small>${escapeHtml(notification.created_at)}</small>
+                    </div>
+                    ${notification.status === "unread"
+                        ? `<button type="button" class="notification-read-btn" data-notification-id="${notification.id}">Mark as read</button>`
+                        : '<span class="notification-read-label">Read</span>'}
+                </article>
+            `).join("");
+        };
+
+        const loadNotifications = async () => {
+            try {
+                const response = await fetch("{{ url_for('admin_notifications') }}", {
+                    headers: { "X-Requested-With": "XMLHttpRequest" }
+                });
+                if (!response.ok) {
+                    return;
+                }
+                const data = await response.json();
+                renderNotifications(data.notifications, data.unread_count);
+            } catch (_error) {
+            }
+        };
+
+        const positionDropdown = () => {
+            const rect = button.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const desiredWidth = Math.min(380, viewportWidth - 24);
+            const rightSpacing = Math.max(viewportWidth - rect.right, 24);
+            const topSpacing = rect.bottom + 14;
+
+            dropdown.style.width = `${desiredWidth}px`;
+            dropdown.style.top = `${topSpacing}px`;
+            dropdown.style.right = `${rightSpacing}px`;
+        };
+
+        const openDropdown = () => {
+            positionDropdown();
+            dropdown.classList.remove("hidden");
+            dropdown.classList.add("is-open");
+            button.setAttribute("aria-expanded", "true");
+        };
+
+        const closeDropdown = () => {
+            dropdown.classList.remove("is-open");
+            dropdown.classList.add("hidden");
+            button.setAttribute("aria-expanded", "false");
+        };
+
+        button.addEventListener("click", () => {
+            if (dropdown.classList.contains("hidden")) {
+                openDropdown();
+                return;
+            }
+            closeDropdown();
+        });
+
+        document.addEventListener("click", (event) => {
+            if (!wrapper.contains(event.target) && !dropdown.contains(event.target)) {
+                closeDropdown();
+            }
+        });
+
+        window.addEventListener("resize", () => {
+            if (!dropdown.classList.contains("hidden")) {
+                positionDropdown();
+            }
+        });
+
+        window.addEventListener("scroll", () => {
+            if (!dropdown.classList.contains("hidden")) {
+                positionDropdown();
+            }
+        }, { passive: true });
+
+        list.addEventListener("click", async (event) => {
+            const target = event.target.closest(".notification-read-btn");
+            if (!target) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/admin/notifications/${target.dataset.notificationId}/read`, {
+                    method: "POST",
+                    headers: { "X-Requested-With": "XMLHttpRequest" }
+                });
+                if (!response.ok) {
+                    return;
+                }
+                const data = await response.json();
+                renderNotifications(data.notifications, data.unread_count);
+            } catch (_error) {
+            }
+        });
+
+        loadNotifications();
+        window.setInterval(loadNotifications, 10000);
+    })();
+    </script>
+    {% endif %}
+</body>
+</html>

@@ -1,0 +1,608 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard | Fraudulent Complaint Detection{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<section class="hero-card compact admin-dashboard-hero">
+    <div class="admin-hero-copy">
+        <p class="eyebrow">Admin Dashboard</p>
+        <h2>Detection of Fraudulent Complaints</h2>
+        <p class="hero-copy admin-hero-text">
+            Monitor complaint activity, review suspicious submissions, and manage complaint history from one simple dashboard.
+        </p>
+    </div>
+    <div class="admin-hero-side">
+        <div class="mini-stat-card">
+            <span>Today's Complaints</span>
+            <strong id="todayCount">{{ summary.today_count }}</strong>
+            <small>New complaints submitted today</small>
+        </div>
+    </div>
+</section>
+
+<section class="alert-banner {{ 'alert-visible' if summary.alert else 'hidden' }}" id="fraudAlertBanner">
+    <strong id="fraudAlertMessage">{{ summary.alert_message }}</strong>
+    <span>Fraudulent complaints have crossed the review limit. Please verify recent records.</span>
+</section>
+
+<section class="stats-grid admin-stats-grid">
+    <article class="stat-card info">
+        <span>Total Complaints</span>
+        <strong id="totalComplaints">{{ summary.total }}</strong>
+        <small>All complaint records stored in the system</small>
+    </article>
+    <article class="stat-card danger">
+        <span>Fraudulent Complaints</span>
+        <strong id="fraudulentComplaints">{{ summary.fraudulent }}</strong>
+        <small id="fraudulentPercent">{{ summary.fraudulent_pct }}% of total complaints</small>
+    </article>
+    <article class="stat-card success">
+        <span>Genuine Complaints</span>
+        <strong id="genuineComplaints">{{ summary.genuine }}</strong>
+        <small id="genuinePercent">{{ summary.genuine_pct }}% of total complaints</small>
+    </article>
+</section>
+
+<section class="dashboard-grid admin-dashboard-grid">
+    <article class="panel-card chart-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Graphs & Visualization</p>
+                <h2>Fraudulent vs Genuine Complaints</h2>
+            </div>
+        </div>
+        <div class="chart-wrap compact">
+            <canvas id="adminComplaintChart"></canvas>
+        </div>
+    </article>
+
+    <article class="panel-card summary-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Overview</p>
+                <h2>Quick Summary</h2>
+            </div>
+        </div>
+        <div class="summary-list">
+            <div>
+                <span>Fraud vs Genuine Ratio</span>
+                <strong id="ratioSummary">{{ summary.fraudulent_pct }}% / {{ summary.genuine_pct }}%</strong>
+                <small>Easy comparison of suspicious and valid complaints</small>
+            </div>
+            <div>
+                <span>Complaint History</span>
+                <strong id="historySummary">{{ summary.total }}</strong>
+                <small>Complete history is available in the management table below</small>
+            </div>
+            <div>
+                <span>Review Queue</span>
+                <strong id="reviewQueueSummary">Pending admin verification</strong>
+                <small>Use Verified, Rejected, or Pending for each complaint record</small>
+            </div>
+        </div>
+    </article>
+</section>
+
+<section class="panel-card">
+    <div class="panel-heading">
+        <div>
+            <p class="eyebrow">Recent Complaints</p>
+            <h2>Latest Complaint Activity</h2>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Complaint ID</th>
+                    <th>Short Description</th>
+                    <th>Status</th>
+                    <th>Date & Time</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody id="recentComplaintsBody">
+                {% if recent_complaints %}
+                    {% for complaint in recent_complaints %}
+                    <tr>
+                        <td>#{{ complaint.id }}</td>
+                        <td>{{ complaint.short_complaint }}</td>
+                        <td>
+                            <span class="badge {{ 'badge-danger' if complaint.result == 'Fraudulent' else 'badge-success' }}">
+                                {{ complaint.result }}
+                            </span>
+                        </td>
+                        <td>{{ complaint.created_at_display }}</td>
+                        <td>
+                            <button type="button" class="table-link-btn js-view-complaint" data-complaint-id="{{ complaint.id }}">
+                                View Details
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-state empty-state-soft">
+                                <h3>No complaints available</h3>
+                                <p>Recent complaints will appear here after users submit them.</p>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="panel-card">
+    <div class="panel-heading admin-management-heading">
+        <div>
+            <p class="eyebrow">Complaint Management</p>
+            <h2>Search, Filter, and Review Complaints</h2>
+        </div>
+        <div class="toolbar-actions">
+            <div class="filter-tabs" id="filterTabs">
+                <button type="button" class="filter-chip {{ 'active' if active_filter == 'all' else '' }}" data-filter="all">All Complaints</button>
+                <button type="button" class="filter-chip {{ 'active' if active_filter == 'fraud' else '' }}" data-filter="fraud">Fraud Only</button>
+                <button type="button" class="filter-chip {{ 'active' if active_filter == 'genuine' else '' }}" data-filter="genuine">Genuine Only</button>
+            </div>
+            <div class="search-box">
+                <input
+                    type="search"
+                    id="complaintSearch"
+                    name="q"
+                    placeholder="Search by complaint, user, or ID"
+                    value="{{ search_query }}"
+                >
+            </div>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table admin-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>User</th>
+                    <th>Complaint</th>
+                    <th>Status</th>
+                    <th>Review</th>
+                    <th>Date & Time</th>
+                    <th>Image</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="complaintsTableBody">
+                {% if complaints %}
+                    {% for complaint in complaints %}
+                    <tr>
+                        <td>#{{ complaint.id }}</td>
+                        <td>{{ complaint.username }}</td>
+                        <td>{{ complaint.short_complaint }}</td>
+                        <td>
+                            <span class="badge {{ 'badge-danger' if complaint.result == 'Fraudulent' else 'badge-success' }}">
+                                {{ complaint.result }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="review-status-stack">
+                                <span class="badge {{ 'badge-warning' if complaint.review_status == 'Pending' else ('badge-success' if complaint.review_status == 'Verified' else 'badge-danger') }}">
+                                    {{ complaint.review_status }}
+                                </span>
+                                <select class="status-select js-review-status" data-complaint-id="{{ complaint.id }}">
+                                    {% for review_status in review_statuses %}
+                                    <option value="{{ review_status }}" {% if complaint.review_status == review_status %}selected{% endif %}>
+                                        {{ review_status }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </td>
+                        <td>{{ complaint.created_at_display }}</td>
+                        <td>
+                            {% if complaint.image_url %}
+                            <img src="{{ complaint.image_url }}" alt="Complaint image" class="complaint-thumbnail">
+                            {% else %}
+                            <span class="no-image">No Image</span>
+                            {% endif %}
+                        </td>
+                        <td class="action-cell">
+                            <button type="button" class="table-link-btn js-view-complaint" data-complaint-id="{{ complaint.id }}">
+                                View
+                            </button>
+                            <form method="POST" action="{{ url_for('delete_complaint', complaint_id=complaint.id) }}">
+                                <button type="submit" class="danger-btn">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8">
+                            <div class="empty-state empty-state-soft">
+                                <h3>No complaints available</h3>
+                                <p>Try a different filter or search keyword.</p>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="detail-modal hidden" id="complaintDetailModal" aria-hidden="true">
+    <div class="detail-modal-backdrop" data-close-modal="true"></div>
+    <div class="detail-modal-card">
+        <div class="detail-modal-header">
+            <div>
+                <p class="eyebrow">Complaint Details</p>
+                <h2 id="detailTitle">Complaint #</h2>
+            </div>
+            <button type="button" class="icon-btn" id="closeComplaintModal" aria-label="Close complaint details">&times;</button>
+        </div>
+
+        <div class="detail-grid">
+            <div class="detail-section">
+                <span class="detail-label">User</span>
+                <p id="detailUsername">-</p>
+            </div>
+            <div class="detail-section">
+                <span class="detail-label">Prediction</span>
+                <p id="detailResult">-</p>
+            </div>
+            <div class="detail-section">
+                <span class="detail-label">Review Status</span>
+                <p id="detailReviewStatus">-</p>
+            </div>
+            <div class="detail-section">
+                <span class="detail-label">Date & Time</span>
+                <p id="detailCreatedAt">-</p>
+            </div>
+        </div>
+
+        <div class="detail-section detail-description">
+            <span class="detail-label">Full Complaint</span>
+            <p id="detailComplaintText">-</p>
+        </div>
+
+        <div class="detail-section">
+            <span class="detail-label">Uploaded Image</span>
+            <div class="detail-image-wrap" id="detailImageWrap">
+                <span class="no-image">No Image Uploaded</span>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    const chartCanvas = document.getElementById("adminComplaintChart");
+    const totalComplaints = document.getElementById("totalComplaints");
+    const fraudulentComplaints = document.getElementById("fraudulentComplaints");
+    const genuineComplaints = document.getElementById("genuineComplaints");
+    const fraudulentPercent = document.getElementById("fraudulentPercent");
+    const genuinePercent = document.getElementById("genuinePercent");
+    const todayCount = document.getElementById("todayCount");
+    const ratioSummary = document.getElementById("ratioSummary");
+    const fraudAlertBanner = document.getElementById("fraudAlertBanner");
+    const fraudAlertMessage = document.getElementById("fraudAlertMessage");
+    const searchInput = document.getElementById("complaintSearch");
+    const filterTabs = document.getElementById("filterTabs");
+    const complaintsTableBody = document.getElementById("complaintsTableBody");
+    const recentComplaintsBody = document.getElementById("recentComplaintsBody");
+    const detailModal = document.getElementById("complaintDetailModal");
+    const closeComplaintModal = document.getElementById("closeComplaintModal");
+    const reviewStatuses = {{ review_statuses | tojson }};
+
+    let activeFilter = {{ active_filter | tojson }};
+    let searchQuery = {{ search_query | tojson }};
+    let chart;
+
+    const createChart = (fraudulent, genuine) => {
+        if (!chartCanvas) {
+            return;
+        }
+
+        if (chart) {
+            chart.destroy();
+        }
+
+        chart = new Chart(chartCanvas, {
+            type: "pie",
+            data: {
+                labels: ["Fraudulent", "Genuine"],
+                datasets: [{
+                    data: [fraudulent, genuine],
+                    backgroundColor: ["#dc2626", "#2563eb"],
+                    borderColor: ["#ffffff", "#ffffff"],
+                    borderWidth: 4,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: "bottom"
+                    }
+                }
+            }
+        });
+    };
+
+    const renderSummary = (summary) => {
+        totalComplaints.textContent = summary.total;
+        fraudulentComplaints.textContent = summary.fraudulent;
+        genuineComplaints.textContent = summary.genuine;
+        todayCount.textContent = summary.today_count;
+        fraudulentPercent.textContent = `${summary.fraudulent_pct}% of total complaints`;
+        genuinePercent.textContent = `${summary.genuine_pct}% of total complaints`;
+        ratioSummary.textContent = `${summary.fraudulent_pct}% / ${summary.genuine_pct}%`;
+        fraudAlertMessage.textContent = summary.alert_message;
+        fraudAlertBanner.classList.toggle("hidden", !summary.alert);
+        createChart(summary.fraudulent, summary.genuine);
+    };
+
+    const renderImageCell = (complaint) => {
+        if (!complaint.image_url) {
+            return '<span class="no-image">No Image</span>';
+        }
+        return `<img src="${complaint.image_url}" alt="Complaint image" class="complaint-thumbnail">`;
+    };
+
+    const renderReviewOptions = (selectedStatus) => reviewStatuses.map((status) => `
+        <option value="${status}" ${selectedStatus === status ? "selected" : ""}>${status}</option>
+    `).join("");
+
+    const reviewBadgeClass = (status) => {
+        if (status === "Pending") {
+            return "badge-warning";
+        }
+        return status === "Verified" ? "badge-success" : "badge-danger";
+    };
+
+    const renderRecentComplaints = (complaints) => {
+        if (!complaints.length) {
+            recentComplaintsBody.innerHTML = `
+                <tr>
+                    <td colspan="5">
+                        <div class="empty-state empty-state-soft">
+                            <h3>No complaints available</h3>
+                            <p>Recent complaints will appear here after users submit them.</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        recentComplaintsBody.innerHTML = complaints.map((complaint) => `
+            <tr>
+                <td>#${complaint.id}</td>
+                <td>${complaint.short_complaint}</td>
+                <td>
+                    <span class="badge ${complaint.result === "Fraudulent" ? "badge-danger" : "badge-success"}">
+                        ${complaint.result}
+                    </span>
+                </td>
+                <td>${complaint.created_at_display}</td>
+                <td>
+                    <button type="button" class="table-link-btn js-view-complaint" data-complaint-id="${complaint.id}">
+                        View Details
+                    </button>
+                </td>
+            </tr>
+        `).join("");
+    };
+
+    const renderComplaintsTable = (complaints) => {
+        if (!complaints.length) {
+            complaintsTableBody.innerHTML = `
+                <tr>
+                    <td colspan="8">
+                        <div class="empty-state empty-state-soft">
+                            <h3>No complaints available</h3>
+                            <p>Try a different filter or search keyword.</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        complaintsTableBody.innerHTML = complaints.map((complaint) => `
+            <tr>
+                <td>#${complaint.id}</td>
+                <td>${complaint.username}</td>
+                <td>${complaint.short_complaint}</td>
+                <td>
+                    <span class="badge ${complaint.result === "Fraudulent" ? "badge-danger" : "badge-success"}">
+                        ${complaint.result}
+                    </span>
+                </td>
+                <td>
+                    <div class="review-status-stack">
+                        <span class="badge ${reviewBadgeClass(complaint.review_status)}">${complaint.review_status}</span>
+                        <select class="status-select js-review-status" data-complaint-id="${complaint.id}">
+                            ${renderReviewOptions(complaint.review_status)}
+                        </select>
+                    </div>
+                </td>
+                <td>${complaint.created_at_display}</td>
+                <td>${renderImageCell(complaint)}</td>
+                <td class="action-cell">
+                    <button type="button" class="table-link-btn js-view-complaint" data-complaint-id="${complaint.id}">View</button>
+                    <form method="POST" action="/delete/${complaint.id}">
+                        <button type="submit" class="danger-btn">Delete</button>
+                    </form>
+                </td>
+            </tr>
+        `).join("");
+    };
+
+    const setActiveFilterButton = () => {
+        filterTabs.querySelectorAll(".filter-chip").forEach((button) => {
+            button.classList.toggle("active", button.dataset.filter === activeFilter);
+        });
+    };
+
+    const loadDashboardData = async () => {
+        const params = new URLSearchParams({
+            filter: activeFilter,
+            q: searchQuery
+        });
+
+        try {
+            const response = await fetch(`/admin/complaints-data?${params.toString()}`, {
+                headers: { "X-Requested-With": "XMLHttpRequest" }
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+            renderSummary(data.summary);
+            renderRecentComplaints(data.recent_complaints);
+            renderComplaintsTable(data.complaints);
+            setActiveFilterButton();
+        } catch (_error) {
+        }
+    };
+
+    const updateReviewStatus = async (complaintId, reviewStatus) => {
+        try {
+            const response = await fetch(`/admin/complaints/${complaintId}/review-status`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                body: JSON.stringify({ review_status: reviewStatus })
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            await loadDashboardData();
+        } catch (_error) {
+        }
+    };
+
+    const openComplaintModal = (complaint) => {
+        document.getElementById("detailTitle").textContent = `Complaint #${complaint.id}`;
+        document.getElementById("detailUsername").textContent = complaint.username;
+        document.getElementById("detailResult").textContent = `${complaint.result} (${complaint.confidence}% confidence)`;
+        document.getElementById("detailReviewStatus").textContent = complaint.review_status;
+        document.getElementById("detailCreatedAt").textContent = complaint.created_at_display;
+        document.getElementById("detailComplaintText").textContent = complaint.complaint;
+
+        const imageWrap = document.getElementById("detailImageWrap");
+        imageWrap.innerHTML = complaint.image_url
+            ? `<img src="${complaint.image_url}" alt="Complaint image" class="complaint-thumbnail large">`
+            : '<span class="no-image">No Image Uploaded</span>';
+
+        detailModal.classList.remove("hidden");
+        detailModal.setAttribute("aria-hidden", "false");
+    };
+
+    const fetchComplaintDetail = async (complaintId) => {
+        try {
+            const response = await fetch(`/admin/complaints/${complaintId}`, {
+                headers: { "X-Requested-With": "XMLHttpRequest" }
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+            if (data.ok) {
+                openComplaintModal(data.complaint);
+            }
+        } catch (_error) {
+        }
+    };
+
+    const closeModal = () => {
+        detailModal.classList.add("hidden");
+        detailModal.setAttribute("aria-hidden", "true");
+    };
+
+    const debounce = (callback, delay) => {
+        let timeoutId;
+        return (...args) => {
+            window.clearTimeout(timeoutId);
+            timeoutId = window.setTimeout(() => callback(...args), delay);
+        };
+    };
+
+    filterTabs.addEventListener("click", (event) => {
+        const button = event.target.closest(".filter-chip");
+        if (!button) {
+            return;
+        }
+        activeFilter = button.dataset.filter;
+        loadDashboardData();
+    });
+
+    searchInput.addEventListener("input", debounce((event) => {
+        searchQuery = event.target.value.trim();
+        loadDashboardData();
+    }, 300));
+
+    complaintsTableBody.addEventListener("change", (event) => {
+        const select = event.target.closest(".js-review-status");
+        if (!select) {
+            return;
+        }
+        updateReviewStatus(select.dataset.complaintId, select.value);
+    });
+
+    document.addEventListener("click", (event) => {
+        const button = event.target.closest(".js-view-complaint");
+        if (button) {
+            fetchComplaintDetail(button.dataset.complaintId);
+            return;
+        }
+
+        if (event.target.dataset.closeModal === "true") {
+            closeModal();
+        }
+    });
+
+    closeComplaintModal.addEventListener("click", closeModal);
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !detailModal.classList.contains("hidden")) {
+            closeModal();
+        }
+    });
+
+    renderSummary({
+        total: {{ summary.total }},
+        fraudulent: {{ summary.fraudulent }},
+        genuine: {{ summary.genuine }},
+        today_count: {{ summary.today_count }},
+        fraudulent_pct: {{ summary.fraudulent_pct }},
+        genuine_pct: {{ summary.genuine_pct }},
+        alert: {{ 'true' if summary.alert else 'false' }},
+        alert_message: {{ summary.alert_message | tojson }}
+    });
+
+    setActiveFilterButton();
+    window.setInterval(loadDashboardData, 15000);
+})();
+</script>
+{% endblock %}
+

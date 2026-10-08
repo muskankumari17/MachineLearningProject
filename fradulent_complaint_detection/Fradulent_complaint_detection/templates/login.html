@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Authentication | Fraudulent Complaint Detection{% endblock %}
+{% block page_class %}auth-page{% endblock %}
+
+{% block content %}
+<section class="auth-layout single-auth-layout">
+    <div class="auth-brand-hero">
+        <div class="auth-logo-wrap" aria-hidden="true">
+            <div class="auth-logo-badge">FD</div>
+        </div>
+        <h1 class="auth-project-title">Detection of Fraudulent Complaints</h1>
+        <p class="auth-tagline">Smart Detection of Fake Complaints using Machine Learning</p>
+    </div>
+
+    <article class="auth-card auth-card-wide" data-auth-root data-active-tab="{{ active_tab or 'user-login' }}">
+        <p class="eyebrow">Project Access</p>
+        <h2>Authentication Portal</h2>
+        <p>Use one page to sign in as a user, create an account, or access the admin dashboard.</p>
+
+        <div class="auth-tabs" role="tablist" aria-label="Authentication tabs">
+            <button type="button" class="auth-tab" data-auth-tab="user-login">User Login</button>
+            <button type="button" class="auth-tab" data-auth-tab="user-signup">User Signup</button>
+            <button type="button" class="auth-tab" data-auth-tab="admin-login">Admin Login</button>
+        </div>
+
+        <div class="auth-panel" data-auth-panel="user-login">
+            <form action="{{ url_for('login') }}" method="POST" class="auth-form">
+                <input type="hidden" name="auth_mode" value="user">
+
+                <label for="user-login-username">Email / Username</label>
+                <input id="user-login-username" type="text" name="username" placeholder="Enter email or username" required>
+
+                <label for="user-login-password">Password</label>
+                <input id="user-login-password" type="password" name="password" placeholder="Enter password" required>
+
+                <button type="submit" class="primary-btn full-width">Login</button>
+            </form>
+
+            <p class="auth-link">
+                Don't have an account? <button type="button" class="auth-inline-toggle" data-auth-switch="user-signup">Sign up</button>
+            </p>
+        </div>
+
+        <div class="auth-panel" data-auth-panel="user-signup">
+            <form action="{{ url_for('signup') }}" method="POST" class="auth-form">
+                <label for="signup-name">Name</label>
+                <input id="signup-name" type="text" name="name" placeholder="Enter full name" required>
+
+                <label for="signup-email">Email</label>
+                <input id="signup-email" type="email" name="email" placeholder="Enter email address" required>
+
+                <label for="signup-password">Password</label>
+                <input id="signup-password" type="password" name="password" placeholder="Create password" required>
+
+                <label for="signup-confirm-password">Confirm Password</label>
+                <input id="signup-confirm-password" type="password" name="confirm_password" placeholder="Confirm password" required>
+
+                <button type="submit" class="primary-btn full-width">Create Account</button>
+            </form>
+
+            <p class="auth-link">
+                Already have an account? <button type="button" class="auth-inline-toggle" data-auth-switch="user-login">Back to login</button>
+            </p>
+        </div>
+
+        <div class="auth-panel" data-auth-panel="admin-login">
+            <form action="{{ url_for('login') }}" method="POST" class="auth-form">
+                <input type="hidden" name="auth_mode" value="admin">
+
+                <label for="admin-login-username">Admin Username</label>
+                <input id="admin-login-username" type="text" name="username" placeholder="Enter admin username" required>
+
+                <label for="admin-login-password">Password</label>
+                <input id="admin-login-password" type="password" name="password" placeholder="Enter password" required>
+
+                <button type="submit" class="primary-btn full-width">Admin Login</button>
+            </form>
+        </div>
+    </article>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    const authRoot = document.querySelector("[data-auth-root]");
+    if (!authRoot) {
+        return;
+    }
+
+    const tabs = authRoot.querySelectorAll("[data-auth-tab]");
+    const panels = authRoot.querySelectorAll("[data-auth-panel]");
+    const switches = authRoot.querySelectorAll("[data-auth-switch]");
+
+    const setActiveTab = (tabId) => {
+        authRoot.dataset.activeTab = tabId;
+
+        tabs.forEach((tab) => {
+            const isActive = tab.dataset.authTab === tabId;
+            tab.classList.toggle("active", isActive);
+            tab.setAttribute("aria-selected", String(isActive));
+        });
+
+        panels.forEach((panel) => {
+            panel.classList.toggle("active", panel.dataset.authPanel === tabId);
+        });
+    };
+
+    tabs.forEach((tab) => {
+        tab.addEventListener("click", () => setActiveTab(tab.dataset.authTab));
+    });
+
+    switches.forEach((button) => {
+        button.addEventListener("click", () => setActiveTab(button.dataset.authSwitch));
+    });
+
+    setActiveTab(authRoot.dataset.activeTab || "user-login");
+})();
+</script>
+{% endblock %}

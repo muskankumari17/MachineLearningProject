@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}User Dashboard | Fraudulent Complaint Detection{% endblock %}
+{% block dashboard_nav_class %}active{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<section class="hero-card dashboard-hero">
+    <div class="hero-main">
+        <p class="eyebrow">User Dashboard</p>
+        <div class="hero-insights">
+            <div class="hero-highlight">
+                <span>Total complaints reviewed</span>
+                <strong>{{ metrics.total }}</strong>
+            </div>
+            <div class="hero-ratio">
+                <div>
+                    <span>Fraudulent share</span>
+                    <strong>
+                        {% if metrics.total %}
+                            {{ ((metrics.fraudulent / metrics.total) * 100) | round(1) }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </strong>
+                </div>
+                <div>
+                    <span>Genuine share</span>
+                    <strong>
+                        {% if metrics.total %}
+                            {{ ((metrics.genuine / metrics.total) * 100) | round(1) }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </strong>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="hero-side">
+        <div class="hero-action-card">
+            <p class="eyebrow">Quick Action</p>
+            <h2>Analyze a new complaint</h2>
+            <p class="hero-copy">Submit fresh complaint text and let the model classify it immediately.</p>
+            <a href="{{ url_for('submit_complaint') }}" class="primary-btn">Submit New Complaint</a>
+        </div>
+    </div>
+</section>
+
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>Total Complaints</span>
+        <strong>{{ metrics.total }}</strong>
+        <small>Overall complaint records tracked by the system</small>
+    </article>
+    <article class="stat-card danger">
+        <span>Fraudulent Complaints</span>
+        <strong>{{ metrics.fraudulent }}</strong>
+        <small>Complaints flagged as suspicious by the model</small>
+    </article>
+    <article class="stat-card success">
+        <span>Genuine Complaints</span>
+        <strong>{{ metrics.genuine }}</strong>
+        <small>Complaints classified as authentic submissions</small>
+    </article>
+</section>
+
+<section class="dashboard-grid">
+    <article class="panel-card chart-panel compact-chart-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="eyebrow">Visualization</p>
+                <h2>Fraudulent vs Genuine Comparison</h2>
+            </div>
+        </div>
+        <div class="chart-wrap compact">
+            <canvas id="complaintChart"></canvas>
+        </div>
+    </article>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const chartContext = document.getElementById("complaintChart");
+
+if (chartContext) {
+    new Chart(chartContext, {
+        type: "bar",
+        data: {
+            labels: ["Fraudulent", "Genuine"],
+            datasets: [{
+                label: "Complaints",
+                data: [{{ metrics.fraudulent }}, {{ metrics.genuine }}],
+                backgroundColor: ["#c2410c", "#15803d"],
+                borderRadius: 14
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}
